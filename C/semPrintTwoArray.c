@@ -6,7 +6,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-#define THREAD_COUNT 2
+#define THREAD_COUNT 10
 #define THREAD_NAME_LEN 20
 #define THREAD_DATA_LEN 50
 #define TEST_ITERATION 20
@@ -18,21 +18,22 @@ typedef struct ThreadInfo_t
     pthread_t thHandle;
     uint8_t thId;
     char thName[THREAD_NAME_LEN];
-    char thData[THREAD_DATA_LEN];
+    uint8_t thData[THREAD_DATA_LEN];
 }ThreadInfo_t;
 
 ThreadInfo_t gThInfo[THREAD_COUNT];
 
 void initThreadData()
 {
-
-    snprintf(gThInfo[0].thData, THREAD_DATA_LEN, "***************");
-    snprintf(gThInfo[1].thData, THREAD_DATA_LEN, "======");
-
     for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
     {
 	gThInfo[iter].thId = iter;
 	snprintf(gThInfo[iter].thName, THREAD_NAME_LEN, "THREAD_%u", iter);
+
+	for(uint8_t dataIter = 0; dataIter < THREAD_DATA_LEN; dataIter++)
+	{
+	    gThInfo[iter].thData[dataIter] = iter;
+	}
     }
 }
 
@@ -41,10 +42,10 @@ void *threadFunc(void *thArg)
     int iter = 0;
     ThreadInfo_t *pThInfo = (ThreadInfo_t *)thArg;
 
-    while(iter < TEST_ITERATION)
+    while(iter < THREAD_DATA_LEN)
     {
 	sem_wait(&semTH[pThInfo->thId]);
-	printf("%s : %s\n", pThInfo->thName, pThInfo->thData);
+	printf("%s : %u\n", pThInfo->thName, pThInfo->thData[iter]);
 	sem_post(&semTH[(pThInfo->thId + 1) % THREAD_COUNT]);
 
 	iter++;
