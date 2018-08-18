@@ -27,13 +27,13 @@ void initThreadData()
 {
     for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
     {
-	gThInfo[iter].thId = iter;
-	snprintf(gThInfo[iter].thName, THREAD_NAME_LEN, "THREAD_%u", iter);
+        gThInfo[iter].thId = iter;
+        snprintf(gThInfo[iter].thName, THREAD_NAME_LEN, "THREAD_%u", iter);
 
-	for(uint8_t dataIter = 0; dataIter < THREAD_DATA_LEN; dataIter++)
-	{
-	    gThInfo[iter].thData[dataIter] = iter;
-	}
+        for(uint8_t dataIter = 0; dataIter < THREAD_DATA_LEN; dataIter++)
+        {
+            gThInfo[iter].thData[dataIter] = iter;
+        }
     }
 }
 
@@ -44,11 +44,11 @@ void *threadFunc(void *thArg)
 
     while(iter < THREAD_DATA_LEN)
     {
-	sem_wait(&semTH[pThInfo->thId]);
-	printf("%s : %u\n", pThInfo->thName, pThInfo->thData[iter]);
-	sem_post(&semTH[(pThInfo->thId + 1) % THREAD_COUNT]);
+        sem_wait(&semTH[pThInfo->thId]);
+        printf("%s : %u\n", pThInfo->thName, pThInfo->thData[iter]);
+        sem_post(&semTH[(pThInfo->thId + 1) % THREAD_COUNT]);
 
-	iter++;
+        iter++;
     }
 
     return thArg;
@@ -57,11 +57,11 @@ void *threadFunc(void *thArg)
 void createThread(pthread_attr_t *thAttr, uint8_t thId)
 {
     int retVal = pthread_create(&gThInfo[thId].thHandle,
-	    thAttr, &threadFunc, (void *)&gThInfo[thId]);
+            thAttr, &threadFunc, (void *)&gThInfo[thId]);
     if(retVal)
     {
-	printf("Thread create failed thId=%u\n", thId);
-	exit(1);
+        printf("Thread create failed thId=%u\n", thId);
+        exit(1);
     }
 }
 
@@ -69,10 +69,10 @@ void initSemaphores()
 {
     for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
     {
-	if(-1 == sem_init(&semTH[iter], 0, 0))
-	{
-	    printf("TH1 seminit failed(%d)\n", errno);
-	}
+        if(-1 == sem_init(&semTH[iter], 0, 0))
+        {
+            printf("TH1 seminit failed(%d)\n", errno);
+        }
     }
 }
 
@@ -87,23 +87,23 @@ int main()
 
     if(pthread_attr_init(&thAttr))
     {
-	printf("Thread creation failed.\n");
-	exit(1);
+        printf("Thread creation failed.\n");
+        exit(1);
     }
 
     for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
-	createThread(&thAttr, iter);
+        createThread(&thAttr, iter);
 
     // Post on very first thread to execute chain
     sem_post(&semTH[0]);
 
     for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
     {
-	pthread_join(gThInfo[iter].thHandle, (void **)&pRetVal);
+        pthread_join(gThInfo[iter].thHandle, (void **)&pRetVal);
 
-	if(pRetVal)
-	{
-	    printf("%s exited.\n", pRetVal->thName);
-	}
+        if(pRetVal)
+        {
+            printf("%s exited.\n", pRetVal->thName);
+        }
     }
 }
