@@ -55,7 +55,7 @@ void writeShmQ(void *pData, uint32_t size)
     uint32_t head = gp_ShmQ->head;
     uint32_t currSize = gp_ShmQ->pShmEle[head].size;
     void *pCurrQBuff = gp_ShmQ->pShmEle[head].pData + currSize;
-    remainSize = SHM_Q_ELE_SZ - currSize;
+    uint32_t remainSize = SHM_Q_ELE_SZ - currSize;
 
     while(size)
     {
@@ -168,7 +168,7 @@ void openFiles()
 
 void *recvThread(void *pArg)
 {
-    void recvBuff[SHM_Q_ELE_SZ];
+    char recvBuff[SHM_Q_ELE_SZ];
 
     while(1)
     {
