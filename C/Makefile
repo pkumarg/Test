@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-g -Wall -Wextra -Werror -std=c11 -D_SVID_SOURCE
+CFLAGS=-g -Wall -Wextra -Werror -std=c11
 LDLIBS=-lpthread
 
 SRC= $(shell find . -name "*.c")

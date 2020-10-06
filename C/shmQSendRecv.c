@@ -8,9 +8,9 @@
 #include <sys/shm.h>
 #include <pthread.h>
 
-#define SHM_SZ 0x4000
-#define SHM_Q_ELE_SZ 64
-#define SHM_Q_SZ 240
+#define SHM_SZ 0x4000   // MAX SHM capacity
+#define SHM_Q_ELE_SZ 64 // MAX size of one queue element 
+#define SHM_Q_SZ 240    // MAX number of elements in queue
 
 // Globals
 key_t shm_key = 0xFF00FF00;
@@ -36,6 +36,12 @@ shmQ *gp_ShmQ = NULL;
 
 void initShmQ()
 {
+    if((SHM_Q_SZ * SHM_Q_ELE_SZ) > SHM_SZ)
+    {
+        printf("Size requested is out of SHM capacity\n");
+        exit(1);
+    }
+
     gp_ShmQ = (shmQ *)gp_shmAddr;
     gp_ShmQ->head = 0;
     gp_ShmQ->tail = 0;
@@ -94,7 +100,7 @@ uint32_t readShmQ(void *pBuff)
 
     if(head == tail)
     {
-        printf("Nothing to read...\n");
+        //printf("Nothing to read...\n");
     }
     else
     {
@@ -106,6 +112,8 @@ uint32_t readShmQ(void *pBuff)
         memcpy(pBuff, gp_ShmQ->pShmEle[tail].pData, readSize);
         tail = (tail + 1) + SHM_Q_SZ;
         gp_ShmQ->tail = tail;
+
+        printf("SHM read size=%u\n", readSize);
     }
 
     return readSize;
