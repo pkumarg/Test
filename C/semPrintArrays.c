@@ -6,16 +6,11 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-#define THREAD_COUNT 10
+#define THREAD_COUNT 3
 #define THREAD_NAME_LEN 20
-#define THREAD_DATA_LEN_LOWER 10
+#define THREAD_DATA_LEN_LOWER 5
 #define THREAD_DATA_LEN_UPPER 50
 #define THREAD_DATA_LEN ((rand() % (THREAD_DATA_LEN_UPPER - THREAD_DATA_LEN_LOWER + 1)) + THREAD_DATA_LEN_LOWER)
-#define TEST_ITERATION 20
-
-sem_t semTH[THREAD_COUNT];
-uint8_t threadDone = 0;
-int isPreviousThreadDone = -1;
 
 typedef struct ThreadId_t
 {
@@ -34,6 +29,9 @@ typedef struct ThreadInfo_t
 }ThreadInfo_t;
 
 ThreadInfo_t gThInfo[THREAD_COUNT];
+sem_t semTH[THREAD_COUNT];
+uint8_t threadDone = 0;
+ThreadId_t* previousThreadDone_p = NULL;
 
 void initThreadData()
 {
@@ -48,7 +46,7 @@ void initThreadData()
 
         for(; dataIter < THREAD_DATA_LEN; dataIter++)
         {
-            gThInfo[iter].thData[dataIter] = iter;
+            gThInfo[iter].thData[dataIter] = dataIter;
         }
 
         gThInfo[iter].thDataLen = dataIter;
@@ -77,21 +75,23 @@ void initThreadData()
     prevThId->next = firstThId;
 }
 
-void removePreviousThread(uint8_t tid) {
-    // Consider B is quitting in A<->B<->C
-    ThreadId_t* B = gThInfo[tid].thId;
+void removeThreadFromLoop(ThreadId_t* thisTh_p)
+{
+    // Consider thisTh_p is quitting in A<->thisTh_p<->C
+    ThreadId_t* A = thisTh_p->prev;
+    ThreadId_t* C = thisTh_p->next;
 
-    ThreadId_t* A = B->prev;
-    ThreadId_t* C = B->next;
-
-    if(B->next == B->prev)
+    if((thisTh_p == thisTh_p->prev) || (thisTh_p == thisTh_p->next))
+    {
         return;
+    }
 
     A->next = C;
     C->prev = A;
 
-    printf("Removed thread=%d\n", isPreviousThreadDone);
-    isPreviousThreadDone = -1;
+    printf("Removed thread=%u\n", thisTh_p->id);
+    free(thisTh_p);
+    previousThreadDone_p = NULL;
 }
 
 void *threadFunc(void *thArg)
@@ -99,28 +99,32 @@ void *threadFunc(void *thArg)
     int iter = 0;
     ThreadInfo_t *pThInfo = (ThreadInfo_t *)thArg;
 
-    ThreadId_t *pThId = pThInfo->thId;
+    ThreadId_t *thId_p = pThInfo->thId;
+    ThreadId_t *nextTh_p;
+
+    printf("Started thread=%u thDataLen=%u\n",
+            pThInfo->thId->id, pThInfo->thDataLen);
 
     while(iter < pThInfo->thDataLen)
     {
-        if(pThId->prev != pThId->next)
-            sem_wait(&semTH[pThId->id]);
+        if(thId_p != thId_p->next)
+            sem_wait(&semTH[thId_p->id]);
 
-        // If previous thread was finished remove it from
-        // loop
-        if(isPreviousThreadDone >= 0)
-            removePreviousThread(isPreviousThreadDone);
+        nextTh_p = thId_p->next;
 
-        //printf("Thread Handle=%lu Name=%s Data=%u\n", pThInfo->thHandle,
-                //pThInfo->thName, pThInfo->thData[iter]);
+        printf("Thread Handle=%lu Name=%s Data=%u\n", pThInfo->thHandle,
+                pThInfo->thName, pThInfo->thData[iter]);
 
-        if(pThId->prev != pThId->next)
-            sem_post(&semTH[pThId->next->id]);
+        if(iter == (pThInfo->thDataLen - 1))
+            removeThreadFromLoop(thId_p);
+
+        if(thId_p != nextTh_p)
+        {
+            sem_post(&semTH[nextTh_p->id]);
+        }
 
         iter++;
     }
-
-    isPreviousThreadDone = (int)pThId->id;
 
     return thArg;
 }
