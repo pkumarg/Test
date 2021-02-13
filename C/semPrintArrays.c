@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <unistd.h>
 
 #define THREAD_COUNT 3
 #define THREAD_NAME_LEN 20
@@ -14,171 +15,189 @@
 
 typedef struct ThreadId_t
 {
-    uint8_t id;
-    struct ThreadId_t *next;
-    struct ThreadId_t *prev;
+  uint8_t threadId;
+  struct ThreadId_t *next;
+  struct ThreadId_t *prev;
 }ThreadId_t;
 
 typedef struct ThreadInfo_t
 {
-    pthread_t thHandle;
-    ThreadId_t *thId;
-    char thName[THREAD_NAME_LEN];
-    uint8_t thData[THREAD_DATA_LEN_UPPER];
-    uint8_t thDataLen;
+  pthread_t thHandle;
+  ThreadId_t *pThNode;
+  char thName[THREAD_NAME_LEN];
+  uint8_t thData[THREAD_DATA_LEN_UPPER];
+  uint8_t thDataLen;
 }ThreadInfo_t;
 
-ThreadInfo_t gThInfo[THREAD_COUNT];
+ThreadInfo_t *gThInfo[THREAD_COUNT];
 sem_t semTH[THREAD_COUNT];
 uint8_t threadDone = 0;
-ThreadId_t* previousThreadDone_p = NULL;
 
 void initThreadData()
 {
-    ThreadId_t *firstThId = NULL;
-    ThreadId_t *prevThId = NULL;
+  ThreadId_t *pFirstThNode = NULL;
+  ThreadId_t *pPrevThNode = NULL;
 
-    for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
+  for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
+  {
+    ThreadInfo_t *pThInfo = malloc(sizeof(ThreadInfo_t));
+    memset(pThInfo, 0, sizeof(ThreadInfo_t));
+    gThInfo[iter] = pThInfo;
+
+    snprintf(pThInfo->thName, THREAD_NAME_LEN, "THREAD_%u", iter);
+
+    uint8_t dataIter = 0;
+
+    for(; dataIter < THREAD_DATA_LEN; dataIter++)
     {
-        snprintf(gThInfo[iter].thName, THREAD_NAME_LEN, "THREAD_%u", iter);
-
-        uint8_t dataIter = 0;
-
-        for(; dataIter < THREAD_DATA_LEN; dataIter++)
-        {
-            gThInfo[iter].thData[dataIter] = dataIter;
-        }
-
-        gThInfo[iter].thDataLen = dataIter;
-        printf("ThreadId=%u ThreadDataLen=%u\n", iter, dataIter);
-
-        // Update Id data
-        ThreadId_t *newThId = (ThreadId_t *) malloc(sizeof(ThreadId_t));
-        newThId->id = iter;
-        newThId->next = NULL;
-        newThId->prev = prevThId;
-
-        if(prevThId)
-            prevThId->next = newThId;
-
-        prevThId = newThId;
-        gThInfo[iter].thId = newThId;
-
-        if(0 == iter)
-        {
-            firstThId = prevThId;
-        }
+      pThInfo->thData[dataIter] = dataIter;
     }
 
-    // Make a circle
-    firstThId->prev = prevThId;
-    prevThId->next = firstThId;
+    pThInfo->thDataLen = dataIter;
+
+    // Update thread data
+    ThreadId_t *pNewThNode = (ThreadId_t *) malloc(sizeof(ThreadId_t));
+    pNewThNode->next = NULL;
+    pNewThNode->threadId = iter;
+    pNewThNode->prev = pPrevThNode;
+
+    if(pPrevThNode)
+      pPrevThNode->next = pNewThNode;
+
+    pPrevThNode = pNewThNode;
+    pThInfo->pThNode = pNewThNode;
+
+    if(0 == iter)
+    {
+      pFirstThNode = pPrevThNode;
+    }
+  }
+
+  // Make a circle
+  pFirstThNode->prev = pPrevThNode;
+  pPrevThNode->next = pFirstThNode;
 }
 
-void removeThreadFromLoop(ThreadId_t* thisTh_p)
+void removeThreadFromLoop(ThreadId_t* pThNode)
 {
-    // Consider thisTh_p is quitting in A<->thisTh_p<->C
-    ThreadId_t* A = thisTh_p->prev;
-    ThreadId_t* C = thisTh_p->next;
+  // Consider pThNode is quitting in A<->pThNode<->C
+  ThreadId_t* A = pThNode->prev;
+  ThreadId_t* C = pThNode->next;
 
-    if((thisTh_p == thisTh_p->prev) || (thisTh_p == thisTh_p->next))
-    {
-        return;
-    }
+  if((pThNode == pThNode->prev) || (pThNode == pThNode->next))
+  {
+    return;
+  }
 
-    A->next = C;
-    C->prev = A;
+  A->next = C;
+  C->prev = A;
 
-    printf("Removed thread=%u\n", thisTh_p->id);
-    free(thisTh_p);
-    previousThreadDone_p = NULL;
+  printf("Thread(%u) out of loop...\n", pThNode->threadId);
 }
 
 void *threadFunc(void *thArg)
 {
-    int iter = 0;
-    ThreadInfo_t *pThInfo = (ThreadInfo_t *)thArg;
+  int iter = 0;
+  ThreadInfo_t *pThInfo = (ThreadInfo_t *)thArg;
 
-    ThreadId_t *thId_p = pThInfo->thId;
-    ThreadId_t *nextTh_p;
+  ThreadId_t *pThNode = pThInfo->pThNode;
+  ThreadId_t *pThNextNode;
 
-    printf("Started thread=%u thDataLen=%u\n",
-            pThInfo->thId->id, pThInfo->thDataLen);
+  printf("Started thread=%u thDataLen=%u\n",
+      pThInfo->pThNode->threadId, pThInfo->thDataLen);
 
-    while(iter < pThInfo->thDataLen)
+  while(iter < pThInfo->thDataLen)
+  {
+    if(pThNode != pThNode->next)
     {
-        if(thId_p != thId_p->next)
-            sem_wait(&semTH[thId_p->id]);
-
-        nextTh_p = thId_p->next;
-
-        printf("Thread Handle=%lu Name=%s Data=%u\n", pThInfo->thHandle,
-                pThInfo->thName, pThInfo->thData[iter]);
-
-        if(iter == (pThInfo->thDataLen - 1))
-            removeThreadFromLoop(thId_p);
-
-        if(thId_p != nextTh_p)
-        {
-            sem_post(&semTH[nextTh_p->id]);
-        }
-
-        iter++;
+      sem_wait(&semTH[pThNode->threadId]);
     }
 
-    return thArg;
+    pThNextNode = pThNode->next;
+
+    printf("\nThread(%u) working on data=%u\n", pThNode->threadId,
+        pThInfo->thData[iter]);
+    if(iter == (pThInfo->thDataLen - 1))
+      removeThreadFromLoop(pThNode);
+
+    if(pThNode != pThNextNode)
+    {
+      printf("Thread(%u) enabling thread(%u)\n", pThNode->threadId,
+          pThNextNode->threadId);
+      sem_post(&semTH[pThNextNode->threadId]);
+    }
+
+    iter++;
+  }
+
+  return thArg;
 }
 
 void createThread(pthread_attr_t *thAttr, uint8_t thId)
 {
-    int retVal = pthread_create(&gThInfo[thId].thHandle,
-            thAttr, &threadFunc, (void *)&gThInfo[thId]);
-    if(retVal)
-    {
-        printf("Thread create failed thId=%u\n", thId);
-        exit(1);
-    }
+  int retVal = pthread_create(&gThInfo[thId]->thHandle,
+      thAttr, &threadFunc, (void *)gThInfo[thId]);
+  if(retVal)
+  {
+    printf("Thread create failed thId=%u\n", thId);
+    exit(1);
+  }
+
+  printf("Thread(%u) created...\n", thId);
 }
 
 void initSemaphores()
 {
-    for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
+  for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
+  {
+    if(-1 == sem_init(&semTH[iter], 0, 0))
     {
-        if(-1 == sem_init(&semTH[iter], 0, 0))
-        {
-            printf("TH1 seminit failed(%d)\n", errno);
-        }
+      printf("TH1 seminit failed(%d)\n", errno);
     }
+  }
 }
 
 int main()
 {
-    pthread_attr_t thAttr;
-    ThreadInfo_t *pRetVal = NULL;
+  pthread_attr_t thAttr;
+  ThreadInfo_t *pThInfo = NULL;
 
-    memset(gThInfo, 0, THREAD_COUNT * sizeof(ThreadInfo_t));
+  initThreadData();
+  initSemaphores();
 
-    initThreadData();
+  if(pthread_attr_init(&thAttr))
+  {
+    printf("Thread creation failed.\n");
+    exit(1);
+  }
 
-    if(pthread_attr_init(&thAttr))
+  for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
+    createThread(&thAttr, iter);
+  printf("\n");
+
+  // Post on very first thread to execute chain
+  sem_post(&semTH[0]);
+
+  for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
+  {
+    pthread_join(gThInfo[iter]->thHandle, (void **)&pThInfo);
+
+    if(pThInfo)
     {
-        printf("Thread creation failed.\n");
-        exit(1);
+      printf("Thread(%u) Name=%s(%lu) exited.\n\n",
+          pThInfo->pThNode->threadId, pThInfo->thName,
+          pThInfo->thHandle);
+
+      // Free thread node
+      if(pThInfo->pThNode)
+      {
+        free(pThInfo->pThNode);
+        pThInfo->pThNode = NULL;
+      }
+
+      // Now finally free thread info
+      free(pThInfo);
+      pThInfo = NULL;
     }
-
-    for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
-        createThread(&thAttr, iter);
-
-    // Post on very first thread to execute chain
-    sem_post(&semTH[0]);
-
-    for(uint8_t iter = 0; iter < THREAD_COUNT; iter++)
-    {
-        pthread_join(gThInfo[iter].thHandle, (void **)&pRetVal);
-
-        if(pRetVal)
-        {
-            printf("%s(%lu) exited.\n", pRetVal->thName, gThInfo[iter].thHandle);
-        }
-    }
+  }
 }
