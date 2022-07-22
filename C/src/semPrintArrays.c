@@ -133,7 +133,7 @@ void *threadFunc(void *thArg)
   return thArg;
 }
 
-void createThread(pthread_attr_t *thAttr, uint8_t thId)
+static void createThread(pthread_attr_t *thAttr, uint8_t thId)
 {
   int retVal = pthread_create(&gThInfo[thId]->thHandle,
       thAttr, &threadFunc, (void *)gThInfo[thId]);

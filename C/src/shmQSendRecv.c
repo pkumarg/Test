@@ -150,7 +150,7 @@ void deInitSharedMem()
     }
 }
 
-void createThread(pthread_attr_t *pThAttr,
+static void createThread(pthread_attr_t *pThAttr,
         pthread_t *thHandle,
         void * (*threadFunc)(void *), uint8_t thId)
 {
