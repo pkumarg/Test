@@ -203,7 +203,7 @@ void *sendThread(void *pArg)
     return pArg;
 }
 
-int main()
+void shmQSendRecvTest()
 {
     pthread_attr_t thAttr;
     pthread_t thread0, thread1;
@@ -241,5 +241,4 @@ int main()
     printf("Size shmQElement=%lu\n", sizeof(shmQElement));
 
     deInitSharedMem();
-    return 0;
 }

@@ -157,7 +157,7 @@ void initSemaphores()
   }
 }
 
-int main()
+void semPrintArrayTest()
 {
   pthread_attr_t thAttr;
   ThreadInfo_t *pThInfo = NULL;
